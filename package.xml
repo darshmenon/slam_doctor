@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>slam_doctor</name>
+  <version>0.1.0</version>
+  <description>Runtime health monitor for any ROS 2 SLAM: loop-closure log, tracking-lost flaps, map stalls, drift, feature-poor views.</description>
+  <maintainer email="darshmenon02@gmail.com">darshmenon</maintainer>
+  <license>Apache-2.0</license>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>tf2_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>diagnostic_msgs</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <test_depend>python3-pytest</test_depend>
+  <export><build_type>ament_python</build_type></export>
+</package>
