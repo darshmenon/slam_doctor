@@ -94,3 +94,20 @@ def test_score_and_summary():
     assert d.score(3) == 100
     assert d.score(20) == 60                 # TRACKING_LOST error costs 40
     assert d.summary(3)['corrections'] == 0
+
+
+def test_baseline_flags_a_slowed_tracker_and_leaves_a_lost_one_to_tracking_lost():
+    from slam_doctor import baseline as bl
+    d = SlamDoctor(); feed(d, 0, 20, step=0.05); d.map_stats(1000, 50, 5000, 19)
+    d.baseline = bl.learn(d.arrivals)
+    assert abs(d.baseline['map_odom']['hz'] - 20) < 1.5 and 'odom' not in d.baseline      # odom never fed: no baseline for it
+    assert codes(d, 20.0) == {'HEALTHY'}
+    feed(d, 20, 30, step=0.125)                                                          # slows to 8 Hz
+    got = codes(d, 29.9)
+    assert 'RATE_DROP' in got and 'HEALTHY' not in got
+    d2 = SlamDoctor(); feed(d2, 0, 20, step=0.05); d2.map_stats(1000, 50, 5000, 19)
+    d2.baseline = bl.learn(d2.arrivals)
+    got = codes(d2, 40.0)
+    assert 'TRACKING_LOST' in got and 'RATE_DROP' not in got
+    from slam_doctor.core import HINTS
+    assert HINTS['RATE_DROP'] and HINTS['RATE_SPIKE']

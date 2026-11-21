@@ -77,6 +77,10 @@ def main(argv=None):
     ap.add_argument('--once', type=float, default=0.0, help='watch N seconds, print one report, exit 1 on ERROR')
     ap.add_argument('--json', action='store_true', help='print one JSON object per report')
     ap.add_argument('--hints', action='store_true', help='suggest a next step under each finding')
+    ap.add_argument('--learn', type=float, default=0.0, metavar='SECS',
+                    help='watch a healthy robot for SECS, write the normal map->odom and odom rates to --baseline-file, exit')
+    ap.add_argument('--baseline-file', default='slam_baseline.json', help='where --learn writes, and --baseline reads')
+    ap.add_argument('--baseline', action='store_true', help='also flag streams far slower or faster than the learned baseline')
     ap.add_argument('--calibrate', metavar='DIR', help='measure your own camera frames and suggest thresholds, then exit')
     ap.add_argument('--events', help='append the correction/loop-closure timeline to this JSONL file')
     ap.add_argument('--diagnostics', action='store_true', help='also publish /diagnostics')
@@ -85,6 +89,11 @@ def main(argv=None):
     rclpy.init(args=ros_args)
     node = Node('slam_doctor')
     d = SlamDoctor()
+    if args.baseline:
+        from .baseline import load
+        d.baseline = load(args.baseline_file)
+    if args.learn:
+        args.once = args.learn
     ns = ('/' + args.ns.strip('/')) if args.ns else ''
     clock = time.monotonic
     rel = QoSProfile(depth=100)
@@ -152,6 +161,13 @@ def main(argv=None):
 
     def tick():
         if args.once and clock() - start >= args.once:
+            if args.learn:
+                from .baseline import learn, save
+                learned = learn(d.arrivals)
+                save(learned, args.baseline_file)
+                print(f'learned {len(learned)} streams -> {args.baseline_file}: ' +
+                      ', '.join(f'{k} {v["hz"]:g} Hz' for k, v in sorted(learned.items())), flush=True)
+                raise SystemExit
             exit_code[0] = 1 if any(x.level == 'ERROR' for x in report()) else 0
             raise SystemExit
         if not args.once:

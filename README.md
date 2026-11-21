@@ -37,6 +37,17 @@ WARN  [FEATURE_POOR] 5 consecutive frames: 74 keypoints, sharpness 52, mean 145
 
 A correction is a `map->odom` step over 0.10 m or 2 degrees, which is what a loop closure or scan-match jump looks like to the rest of the stack. `--events` writes each one with its time, distance and angle. `--diagnostics` also publishes `/diagnostics`, and the report carries a 0-100 health score.
 
+## Per-robot baselines
+
+A 20 Hz `map->odom` is normal for one SLAM setup and a struggling tracker on another. Record normal once, then get warned on drift:
+
+```bash
+slam_doctor --learn 60 --baseline-file my_robot.json      # on a healthy run: writes the normal map->odom and odom rates
+slam_doctor --baseline --baseline-file my_robot.json      # later: RATE_DROP / RATE_SPIKE below half or above double normal
+```
+
+The rate is the median messages per second: plain statistics, no model. A tracker that goes silent is still `TRACKING_LOST`, not a rate finding. Sparse streams such as `/map` (a few updates a minute) are not baselined.
+
 ## How it works
 
 Only topics: `/tf` (`map->odom`), `/odom`, `/map` and optionally a camera. No SLAM-specific plugin, so it works with any backend. Camera checks use OpenCV ORB when installed and a NumPy corner proxy otherwise, sampled at 1 Hz.

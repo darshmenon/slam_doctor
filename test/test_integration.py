@@ -21,7 +21,7 @@ HERE = os.path.abspath(__file__)
 PP = ROOT + os.pathsep + os.environ.get('PYTHONPATH', '')
 
 
-def _run_graph(domain, seconds, jump_at=None, freeze_map=True, move=True):
+def _run_graph(domain, seconds, jump_at=None, freeze_map=True, move=True, hz=10.0):
     """Publish a fake SLAM for `seconds`; returns when done."""
     from geometry_msgs.msg import TransformStamped
     from nav_msgs.msg import OccupancyGrid, Odometry
@@ -52,7 +52,7 @@ def _run_graph(domain, seconds, jump_at=None, freeze_map=True, move=True):
         odp.publish(o)
         if not freeze_map:
             pub_map(100 + int(t * 10))
-    n.create_timer(0.1, tick)
+    n.create_timer(1.0 / hz, tick)
     end = time.monotonic() + seconds
     while time.monotonic() < end:
         rclpy.spin_once(n, timeout_sec=0.05)
@@ -106,3 +106,23 @@ def test_versions_match():
     from slam_doctor import __version__
     assert re.search(r'<version>(.*?)</version>', open(os.path.join(ROOT, 'package.xml')).read()).group(1) == __version__
     assert f"version='{__version__}'" in open(os.path.join(ROOT, 'setup.py')).read()
+
+
+def test_learn_then_baseline_flags_a_slowed_tracker(tmp_path):
+    f = str(tmp_path / 'b.json')
+    th = start_graph(_DOM + 2, 14, hz=20.0); time.sleep(1.5)
+    r = subprocess.run(
+        [sys.executable, '-m', 'slam_doctor.doctor', '--learn', '9', '--baseline-file', f], cwd=ROOT,
+        env=dict(os.environ, ROS_DOMAIN_ID=str(_DOM + 2), PYTHONPATH=PP), capture_output=True, text=True, timeout=60)
+    th.wait()
+    learned = json.load(open(f))['streams']
+    assert r.returncode == 0 and 15 < learned['map_odom']['hz'] < 25, (learned, r.stdout, r.stderr)
+    th = start_graph(_DOM + 3, 14, hz=20.0); time.sleep(1.5)
+    _, rep = doctor(_DOM + 3, 8, '--baseline', '--baseline-file', f)
+    th.wait()
+    assert not {x['code'] for x in rep['findings']} & {'RATE_DROP', 'RATE_SPIKE'}, rep
+    th = start_graph(_DOM + 4, 14, hz=4.0); time.sleep(1.5)
+    _, rep = doctor(_DOM + 4, 8, '--baseline', '--baseline-file', f)
+    th.wait()
+    got = {x['code'] for x in rep['findings']}
+    assert 'RATE_DROP' in got and 'TRACKING_LOST' not in got, rep

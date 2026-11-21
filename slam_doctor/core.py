@@ -27,6 +27,8 @@ class Finding:
 
 
 HINTS = {
+    'RATE_DROP': "a stream is much slower than this robot's learned normal: check CPU load, the SLAM node's publish rate or a throttled bridge; re-learn with --learn if the change is intended",
+    'RATE_SPIKE': "a stream is much faster than this robot's learned normal: a duplicate publisher or a changed rate setting; re-learn with --learn if intended",
     'TRACKING_LOST': 'move back to a textured, well-lit area; check camera topic rate; look for tracker reset in the SLAM log',
     'TRACKING_FLAP': 'tracker keeps dropping and recovering: slow down, add texture/light, check sync of image and depth',
     'JUMP_STORM': 'map corrections arrive in bursts: raise loop-closure / scan-match thresholds',
@@ -62,9 +64,12 @@ class SlamDoctor:
         self.travel_at_change = 0.0
         self.frames = deque(maxlen=FEATURE_FRAMES)
         self.last_frame = None
+        self.arrivals = {'map_odom': deque(maxlen=6000), 'odom': deque(maxlen=6000)}   # receive times, for baselines
+        self.baseline = None           # learned per-robot rates (baseline.py), or None
 
     # ---- inputs ----
     def map_odom(self, x, y, yaw, now):
+        self.arrivals['map_odom'].append(now)
         if self.last_mo is not None:
             if now - self.last_mo_t > GAP_S:
                 self.gaps.append(now)
@@ -78,6 +83,7 @@ class SlamDoctor:
         self.last_mo, self.last_mo_t = (x, y, yaw), now
 
     def odom(self, x, y, now):
+        self.arrivals['odom'].append(now)
         if self.odom_xy is not None:
             self.travel += math.hypot(x - self.odom_xy[0], y - self.odom_xy[1])
         self.odom_xy = (x, y)
@@ -130,6 +136,9 @@ class SlamDoctor:
                 f.append(Finding('WARN', code, f'{FEATURE_FRAMES} consecutive frames: ' +
                                  (f'{self.last_frame["keypoints"]} keypoints, sharpness {self.last_frame["sharpness"]:.0f}, '
                                   f'mean {self.last_frame["mean"]:.0f}' if self.last_frame else '')))
+        if self.baseline:
+            from .baseline import check
+            f.extend(Finding(lv, code, msg) for lv, code, msg in check(self.baseline, self.arrivals, now))
         if not any(x.level in ('ERROR', 'WARN') for x in f):
             f.append(Finding('OK', 'HEALTHY', 'SLAM looks healthy'))
         return f
