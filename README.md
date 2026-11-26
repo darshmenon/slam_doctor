@@ -28,6 +28,10 @@ WARN  [FEATURE_POOR] 5 consecutive frames: 74 keypoints, sharpness 52, mean 145
 | Code | Level | Meaning |
 |---|---|---|
 | `TRACKING_LOST` | ERROR | `map->odom` silent for 5 s |
+| `MAP_RESET` | ERROR | `/map` lost more than half its free cells (at least 500) in one update; shown for 60 s |
+| `ODOM_STALE` / `SCAN_STALE` | ERROR | odometry or laser scans, once seen, silent for 5 s |
+| `IMAGE_NONE` | WARN | `--image` given but no frame in 5 s |
+| `IMAGE_STALE` | ERROR | camera frames stopped for 5 s |
 | `TRACKING_FLAP` | WARN | tracker stopped and resumed 3+ times in 30 s |
 | `MAP_STALL` | ERROR | no new free cells for 20 s while the robot moved 1 m |
 | `JUMP_STORM` / `BIG_JUMP` | WARN | 4+ map corrections in 60 s / a correction of 0.5 m or more |

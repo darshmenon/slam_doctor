@@ -111,3 +111,46 @@ def test_baseline_flags_a_slowed_tracker_and_leaves_a_lost_one_to_tracking_lost(
     assert 'TRACKING_LOST' in got and 'RATE_DROP' not in got
     from slam_doctor.core import HINTS
     assert HINTS['RATE_DROP'] and HINTS['RATE_SPIKE']
+
+
+def _codes(d, now):
+    return {f.code for f in d.diagnose(now)}
+
+
+def test_map_reset_is_reported_then_expires():
+    d = SlamDoctor()
+    d.map_stats(34000, 100, 0, 0.0)
+    d.map_stats(33000, 100, 0, 1.0)               # small changes are normal
+    assert 'MAP_RESET' not in _codes(d, 1.0)
+    d.map_stats(4000, 10, 0, 2.0)
+    assert 'MAP_RESET' in _codes(d, 3.0)
+    assert 'MAP_RESET' not in _codes(d, 100.0)
+
+
+def test_small_young_map_shrinking_is_not_a_reset():
+    d = SlamDoctor()
+    d.map_stats(400, 0, 0, 0.0)
+    d.map_stats(100, 0, 0, 1.0)
+    assert 'MAP_RESET' not in _codes(d, 1.0)
+
+
+def test_silent_odom_and_scan_are_stale_only_after_being_seen():
+    d = SlamDoctor()
+    assert not _codes(d, 100.0) & {'ODOM_STALE', 'SCAN_STALE'}
+    d.odom(0, 0, 100.0)
+    d.scan(100.0)
+    assert not _codes(d, 102.0) & {'ODOM_STALE', 'SCAN_STALE'}
+    assert {'ODOM_STALE', 'SCAN_STALE'} <= _codes(d, 110.0)
+
+
+def test_requested_camera_that_never_publishes_or_stops():
+    d = SlamDoctor(need_images=True)
+    d.started = 0.0
+    assert 'IMAGE_NONE' not in _codes(d, 1.0)
+    assert 'IMAGE_NONE' in _codes(d, 10.0)
+    d.image(10.0)
+    assert not _codes(d, 11.0) & {'IMAGE_NONE', 'IMAGE_STALE'}
+    assert 'IMAGE_STALE' in _codes(d, 20.0)
+    off = SlamDoctor()
+    off.started = 0.0
+    assert 'IMAGE_NONE' not in _codes(off, 10.0)

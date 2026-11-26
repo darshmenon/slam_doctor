@@ -62,7 +62,7 @@ def main(argv=None):
     from nav_msgs.msg import OccupancyGrid, Odometry
     from rclpy.node import Node
     from rclpy.qos import QoSProfile, qos_profile_sensor_data
-    from sensor_msgs.msg import Image
+    from sensor_msgs.msg import Image, LaserScan
     from tf2_msgs.msg import TFMessage
     from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
     from .features import image_stats, to_gray
@@ -88,7 +88,7 @@ def main(argv=None):
 
     rclpy.init(args=ros_args)
     node = Node('slam_doctor')
-    d = SlamDoctor()
+    d = SlamDoctor(need_images=bool(args.image))
     if args.baseline:
         from .baseline import load
         d.baseline = load(args.baseline_file)
@@ -109,6 +109,8 @@ def main(argv=None):
     node.create_subscription(Odometry, f'{ns}/odom',
                              lambda m: d.odom(m.pose.pose.position.x, m.pose.pose.position.y, clock()), qos_profile_sensor_data)
 
+    node.create_subscription(LaserScan, f'{ns}/scan', lambda m: d.scan(clock()), qos_profile_sensor_data)
+
     def on_map(m):
         a = np.asarray(m.data, dtype=np.int8)
         d.map_stats(int((a == 0).sum()), int((a > 50).sum()), int((a < 0).sum()), clock())
@@ -117,6 +119,7 @@ def main(argv=None):
     last_img = [0.0]
     if args.image:
         def on_img(m):
+            d.image(clock())
             if clock() - last_img[0] < 1.0:        # 1 Hz is plenty and keeps the doctor light
                 return
             last_img[0] = clock()
@@ -158,6 +161,7 @@ def main(argv=None):
         return found
 
     exit_code, start = [0], clock()
+    d.started = start
 
     def tick():
         if args.once and clock() - start >= args.once:

@@ -17,6 +17,9 @@ STALL_TRAVEL_M = 1.0     # ... while the robot travelled this far = map not grow
 DRIFT_RATIO = 0.10       # metres of map correction per metre travelled
 DRIFT_MIN_TRAVEL_M = 5.0
 FEATURE_FRAMES = 5       # consecutive bad frames before a visual warning
+RESET_RATIO = 0.5        # free cells dropping by more than this fraction between two maps ...
+RESET_CELLS = 500        # ... and by at least this many cells = the map was reset
+RESET_HOLD_S = 60.0      # keep reporting a reset this long
 
 
 @dataclass
@@ -36,6 +39,11 @@ HINTS = {
     'MAP_STALL': 'map stopped growing while the robot moves: check /map publisher, SLAM node queue, and tracking state',
     'MAP_NONE': 'no /map seen: is the SLAM node running and publishing in this namespace?',
     'NO_MAP_ODOM': 'SLAM publishes no map->odom: check the SLAM node and its frame names / namespace',
+    'MAP_RESET': 'the map lost most of its free space: did the SLAM node crash and respawn? Check its log; reload a saved map or re-explore',
+    'ODOM_STALE': 'odometry stopped: check the base driver or sim bridge',
+    'SCAN_STALE': 'laser scans stopped: check the lidar driver or sim bridge',
+    'IMAGE_NONE': 'no camera frames: check the --image topic name, the camera driver and QoS',
+    'IMAGE_STALE': 'camera frames stopped: check the camera driver',
     'DRIFT_HIGH': 'odometry is drifting: check wheel radius/track width, IMU fusion, slip on this surface',
     'DARK': 'turn on lights or raise exposure', 'OVEREXPOSED': 'lower exposure / avoid facing the light',
     'BLURRED': 'slow down or raise shutter speed; blur kills feature tracking',
@@ -50,6 +58,11 @@ def _wrap(a):
 class SlamDoctor:
     def __init__(self, need_images=False):
         self.need_images = need_images
+        self.started = None            # first time anything was fed in (or set by the node at launch)
+        self.last_odom_t = None
+        self.last_scan_t = None
+        self.last_image_t = None
+        self.reset = None              # (time, free_before, free_after) of the latest map reset
         self.last_mo = None            # (x, y, yaw) of the previous map->odom sample
         self.last_mo_t = None
         self.events = []               # loop-closure / correction timeline: {t, kind, dist, deg}
@@ -82,7 +95,14 @@ class SlamDoctor:
                 self.events.append({'t': now, 'kind': 'correction', 'dist': round(d, 3), 'deg': round(a, 2)})
         self.last_mo, self.last_mo_t = (x, y, yaw), now
 
+    def scan(self, now):
+        self.last_scan_t = now
+
+    def image(self, now):
+        self.last_image_t = now
+
     def odom(self, x, y, now):
+        self.last_odom_t = now
         self.arrivals['odom'].append(now)
         if self.odom_xy is not None:
             self.travel += math.hypot(x - self.odom_xy[0], y - self.odom_xy[1])
@@ -90,6 +110,8 @@ class SlamDoctor:
 
     def map_stats(self, free, occupied, unknown, now):
         self.map_seen = True
+        if self.free is not None and self.free - free >= RESET_CELLS and free < self.free * (1 - RESET_RATIO):
+            self.reset = (now, self.free, free)
         if self.free is None or free != self.free:
             self.free_changed_t, self.travel_at_change = now, self.travel
         self.free = free
@@ -111,6 +133,17 @@ class SlamDoctor:
             f.append(Finding('ERROR', 'TRACKING_LOST', f'map->odom silent for {now - self.last_mo_t:.1f}s'))
         if not self.map_seen:
             f.append(Finding('WARN', 'MAP_NONE', 'no /map received'))
+        if self.reset and now - self.reset[0] <= RESET_HOLD_S:
+            f.append(Finding('ERROR', 'MAP_RESET', f'map free cells fell {self.reset[1]} -> {self.reset[2]} '
+                                                   f'{now - self.reset[0]:.0f}s ago'))
+        for code, label, t in (('ODOM_STALE', 'odometry', self.last_odom_t),
+                               ('SCAN_STALE', 'laser scan', self.last_scan_t),
+                               ('IMAGE_STALE', 'camera image', self.last_image_t if self.need_images else None)):
+            if t is not None and now - t > LOST_S:
+                f.append(Finding('ERROR', code, f'{label} silent for {now - t:.1f}s'))
+        if (self.need_images and self.last_image_t is None and self.started is not None
+                and now - self.started >= LOST_S):
+            f.append(Finding('WARN', 'IMAGE_NONE', f'no camera frames received in {now - self.started:.0f}s'))
         while self.gaps and now - self.gaps[0] > FLAP_WINDOW_S:
             self.gaps.popleft()
         if len(self.gaps) >= FLAP_COUNT:
