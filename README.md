@@ -6,6 +6,29 @@ Companion to [nav2_doctor](https://github.com/darshmenon/nav2_doctor) (why isn't
 
 ![slam_doctor on an ORB-SLAM3 run in Gazebo](docs/demo.gif)
 
+Part of [ros2-doctor-tools](https://github.com/darshmenon/ros2-doctor-tools), an index of my ROS 2 diagnosis, fault injection and evaluation tools.
+
+## Install
+
+Needs a sourced ROS 2 environment. With pip:
+
+```bash
+# ROS 2 sourced; if you use a venv, create it with --system-site-packages
+pip install git+https://github.com/darshmenon/slam_doctor
+slam_doctor --help
+```
+
+A pip install puts the `slam_doctor` command on your PATH; run it directly. The `ros2 run` form needs the colcon build.
+
+Or with colcon:
+
+```bash
+cd ~/ros2_ws/src && git clone https://github.com/darshmenon/slam_doctor.git
+cd .. && colcon build --packages-select slam_doctor && source install/setup.bash
+```
+
+## Quick start
+
 ```bash
 ros2 run slam_doctor slam_doctor                                   # live report every 2 s
 ros2 run slam_doctor slam_doctor --image /camera/image_raw --hints # + camera quality, next steps
