@@ -98,7 +98,7 @@ def test_frozen_map_while_moving_is_an_error():
 def test_version():
     r = subprocess.run([sys.executable, '-m', 'slam_doctor.doctor', '--version'], cwd=ROOT,
                        env=dict(os.environ, PYTHONPATH=PP), capture_output=True, text=True)
-    assert r.stdout.strip() == 'slam_doctor 0.1.0'
+    assert r.stdout.strip() == 'slam_doctor 0.2.0'
 
 
 def test_versions_match():

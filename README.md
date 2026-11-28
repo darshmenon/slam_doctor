@@ -10,7 +10,7 @@ Part of [ros2-doctor-tools](https://github.com/darshmenon/ros2-doctor-tools), an
 
 ## Install
 
-Needs a sourced ROS 2 environment. With pip:
+Needs a sourced ROS 2 environment (CI builds it on Humble, Jazzy and Lyrical). With pip:
 
 ```bash
 # ROS 2 sourced; if you use a venv, create it with --system-site-packages

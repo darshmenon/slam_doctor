@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+
+## 0.2.0
+- Builds and passes its tests on ROS 2 Lyrical in CI (not yet run against a live robot or sim on Lyrical).
 - Per-robot baselines: `--learn SECS` records the normal `map->odom` and `odom` message rates, `--baseline` warns with `RATE_DROP` / `RATE_SPIKE` below half or above double that. Plain statistics, no model. Run live against the fake SLAM graph (learn at 20 Hz, quiet at 20 Hz, `RATE_DROP` at 4 Hz).
 
 ## 0.1.0

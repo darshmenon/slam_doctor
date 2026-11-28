@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="3">
   <name>slam_doctor</name>
-  <version>0.1.0</version>
+  <version>0.2.0</version>
   <description>Runtime health monitor for any ROS 2 SLAM: loop-closure log, tracking-lost flaps, map stalls, drift, feature-poor views.</description>
   <maintainer email="darshmenon02@gmail.com">darshmenon</maintainer>
   <license>Apache-2.0</license>
