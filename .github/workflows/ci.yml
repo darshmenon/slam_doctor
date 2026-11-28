@@ -11,8 +11,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        distro: [humble, jazzy]
+        distro: [humble, jazzy, lyrical]
     container: ros:${{ matrix.distro }}-ros-base
     steps:
       - uses: actions/checkout@v4
